@@ -1,18 +1,17 @@
 const prisma = require("../config/database");
 const AppError = require("../utils/AppError");
 
-// ===============================
-// CREATE PROJECT
-// ===============================
+// Owner fields we send with every project
+const ownerFields = {
+  id: true,
+  username: true,
+  avatar: true,
+  designation: true,
+};
+
+// Create a new project
 module.exports.createProject = async (req, res) => {
-  const {
-    title,
-    description,
-    githubUrl,
-    image,
-    liveUrl,
-    techStack,
-  } = req.body;
+  const { title, description, githubUrl, image, liveUrl, techStack } = req.body;
 
   if (!title || !title.trim()) {
     throw new AppError("Project title is required", 400);
@@ -33,14 +32,7 @@ module.exports.createProject = async (req, res) => {
       ownerId: req.user.id,
     },
     include: {
-      owner: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
+      owner: { select: ownerFields },
     },
   });
 
@@ -51,27 +43,14 @@ module.exports.createProject = async (req, res) => {
   });
 };
 
-// ===============================
-// GET MY PROJECTS
-// ===============================
+// Get the logged in user's projects
 module.exports.myProjects = async (req, res) => {
   const projects = await prisma.project.findMany({
-    where: {
-      ownerId: req.user.id,
-    },
+    where: { ownerId: req.user.id },
     include: {
-      owner: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
+      owner: { select: ownerFields },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
   return res.status(200).json({
@@ -80,24 +59,13 @@ module.exports.myProjects = async (req, res) => {
   });
 };
 
-// ===============================
-// GET ALL / EXPLORE PROJECTS
-// ===============================
+// Get all projects (explore page)
 module.exports.getAllProjects = async (req, res) => {
   const projects = await prisma.project.findMany({
     include: {
-      owner: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
+      owner: { select: ownerFields },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
   return res.status(200).json({
@@ -106,9 +74,7 @@ module.exports.getAllProjects = async (req, res) => {
   });
 };
 
-// ===============================
-// GET SINGLE PROJECT
-// ===============================
+// Get a single project (with a few extra owner details)
 module.exports.getProject = async (req, res) => {
   const projectId = Number(req.params.id);
 
@@ -117,16 +83,11 @@ module.exports.getProject = async (req, res) => {
   }
 
   const project = await prisma.project.findUnique({
-    where: {
-      id: projectId,
-    },
+    where: { id: projectId },
     include: {
       owner: {
         select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
+          ...ownerFields,
           bio: true,
           github: true,
           linkedin: true,
@@ -145,9 +106,7 @@ module.exports.getProject = async (req, res) => {
   });
 };
 
-// ===============================
-// UPDATE PROJECT
-// ===============================
+// Update a project (only the owner can do this)
 module.exports.updateProject = async (req, res) => {
   const projectId = Number(req.params.id);
 
@@ -156,9 +115,7 @@ module.exports.updateProject = async (req, res) => {
   }
 
   const project = await prisma.project.findUnique({
-    where: {
-      id: projectId,
-    },
+    where: { id: projectId },
   });
 
   if (!project) {
@@ -171,27 +128,38 @@ module.exports.updateProject = async (req, res) => {
 
   const { title, description, image, githubUrl, liveUrl, techStack } = req.body;
 
+  // Only update the fields that were sent
+  const dataToUpdate = {};
+
+  if (title !== undefined) {
+    dataToUpdate.title = title.trim();
+  }
+
+  if (description !== undefined) {
+    dataToUpdate.description = description.trim();
+  }
+
+  if (image !== undefined) {
+    dataToUpdate.image = image?.trim() || null;
+  }
+
+  if (githubUrl !== undefined) {
+    dataToUpdate.githubUrl = githubUrl?.trim() || null;
+  }
+
+  if (liveUrl !== undefined) {
+    dataToUpdate.liveUrl = liveUrl?.trim() || null;
+  }
+
+  if (Array.isArray(techStack)) {
+    dataToUpdate.techStack = techStack;
+  }
+
   const updatedProject = await prisma.project.update({
-    where: {
-      id: projectId,
-    },
-    data: {
-      ...(title !== undefined ? { title: title.trim() } : {}),
-      ...(description !== undefined ? { description: description.trim() } : {}),
-      ...(image !== undefined ? { image: image?.trim() || null } : {}),
-      ...(githubUrl !== undefined ? { githubUrl: githubUrl?.trim() || null } : {}),
-      ...(liveUrl !== undefined ? { liveUrl: liveUrl?.trim() || null } : {}),
-      ...(Array.isArray(techStack) ? { techStack } : {}),
-    },
+    where: { id: projectId },
+    data: dataToUpdate,
     include: {
-      owner: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
+      owner: { select: ownerFields },
     },
   });
 
@@ -202,9 +170,7 @@ module.exports.updateProject = async (req, res) => {
   });
 };
 
-// ===============================
-// DELETE PROJECT
-// ===============================
+// Delete a project (only the owner can do this)
 module.exports.deleteProject = async (req, res) => {
   const projectId = Number(req.params.id);
 
@@ -213,9 +179,7 @@ module.exports.deleteProject = async (req, res) => {
   }
 
   const project = await prisma.project.findUnique({
-    where: {
-      id: projectId,
-    },
+    where: { id: projectId },
   });
 
   if (!project) {
@@ -227,9 +191,7 @@ module.exports.deleteProject = async (req, res) => {
   }
 
   await prisma.project.delete({
-    where: {
-      id: projectId,
-    },
+    where: { id: projectId },
   });
 
   return res.status(200).json({

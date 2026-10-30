@@ -1,23 +1,28 @@
-import React, { useEffect, useRef, useState } from "react";
+
+import { useEffect, useRef, useState } from "react";
+
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import ChatSend from "./ChatSend";
 
 import { socket } from "../../socket/socket";
-import { getMessages, markMessagesAsRead } from "../../services/conversation";
+import {
+  getMessages,
+  markMessagesAsRead,
+} from "../../services/conversation";
 
 const ChatWindow = ({ conversation, setConversations }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const conversationId = conversation?.conversationId;
 
-  // ================================
-  // Fetch messages
-  // ================================
+  // Fetch messages when the selected conversation changes.
   useEffect(() => {
-    if (!conversation?.conversationId) {
+    if (!conversationId) {
       setMessages([]);
+      setLoading(false);
       return;
     }
 
@@ -25,9 +30,7 @@ const ChatWindow = ({ conversation, setConversations }) => {
       try {
         setLoading(true);
 
-        const data = await getMessages(
-          conversation.conversationId
-        );
+        const data = await getMessages(conversationId);
 
         setMessages(Array.isArray(data) ? data : []);
       } catch (error) {
@@ -39,80 +42,73 @@ const ChatWindow = ({ conversation, setConversations }) => {
     };
 
     fetchMessages();
-  }, [conversation?.conversationId]);
+  }, [conversationId]);
 
-  // ================================
-  // Receive real-time messages
-  // ================================
+  // Listen for new messages from the server.
   useEffect(() => {
-    if (!conversation?.conversationId) return;
+    if (!conversationId) {
+      return;
+    }
 
     const handleNewMessage = (message) => {
-      console.log("🔥 New message received:", message);
-
-      // Make sure message belongs to current conversation
+      // Ignore messages from other conversations.
       if (
-        Number(message.conversationId) !==
-        Number(conversation.conversationId)
+        Number(message.conversationId) !== Number(conversationId)
       ) {
         return;
       }
 
-      setMessages((prev) => {
-        // Prevent duplicate message
-        const alreadyExists = prev.some(
+      setMessages((previousMessages) => {
+        // Avoid adding the same message twice.
+        const alreadyExists = previousMessages.some(
           (item) => item.id === message.id
         );
 
         if (alreadyExists) {
-          return prev;
+          return previousMessages;
         }
 
-        return [...prev, message];
+        return [...previousMessages, message];
       });
     };
 
     socket.on("newMessage", handleNewMessage);
 
-    // Cleanup listener
+    // Remove the listener when the conversation changes.
     return () => {
       socket.off("newMessage", handleNewMessage);
     };
-  }, [conversation?.conversationId]);
+  }, [conversationId]);
 
-  // ================================
-  // Scroll to bottom
-  // ================================
+  // Scroll to the latest message whenever the list changes.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
   }, [messages]);
 
+  // Mark messages as read when a conversation is selected.
   useEffect(() => {
-  if (!conversation?.conversationId) return;
-
-  const markRead = async () => {
-    try {
-      await markMessagesAsRead(
-        conversation.conversationId
-      );
-    } catch (error) {
-      console.error("Failed to mark messages as read:", error);
+    if (!conversationId) {
+      return;
     }
-  };
 
-  markRead();
-}, [conversation?.conversationId]);
+    const markRead = async () => {
+      try {
+        await markMessagesAsRead(conversationId);
+      } catch (error) {
+        console.error("Failed to mark messages as read:", error);
+      }
+    };
 
-  // ================================
-  // No conversation selected
-  // ================================
+    markRead();
+  }, [conversationId]);
+
+  // Show a placeholder if no conversation is selected.
   if (!conversation) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-gray-50">
         <div className="text-center">
-
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-100 flex items-center justify-center">
             <span className="text-2xl">💬</span>
           </div>
@@ -124,7 +120,6 @@ const ChatWindow = ({ conversation, setConversations }) => {
           <p className="mt-2 text-gray-400">
             Choose someone from your conversations to start chatting.
           </p>
-
         </div>
       </div>
     );
@@ -132,49 +127,33 @@ const ChatWindow = ({ conversation, setConversations }) => {
 
   return (
     <div className="h-full w-full flex flex-col min-w-0 bg-gray-50">
-
-      {/* =================================
-          Chat Header
-      ================================= */}
+      {/* Chat header */}
       <div className="flex-shrink-0">
-        <ChatHeader
-          user={conversation.otherUser}
-        />
+        <ChatHeader user={conversation.otherUser} />
       </div>
 
-      {/* =================================
-          Messages
-      ================================= */}
+      {/* Message list */}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
-
         {loading ? (
           <div className="h-full flex items-center justify-center">
-            <p className="text-gray-400">
-              Loading messages...
-            </p>
+            <p className="text-gray-400">Loading messages...</p>
           </div>
         ) : (
           <>
             <ChatMessage messages={messages} />
-
-            {/* Scroll target */}
             <div ref={messagesEndRef} />
           </>
         )}
-
       </div>
 
-      {/* =================================
-          Message Input
-      ================================= */}
+      {/* Message input */}
       <div className="flex-shrink-0">
         <ChatSend
-          conversationId={conversation.conversationId}
+          conversationId={conversationId}
           setMessages={setMessages}
           setConversations={setConversations}
         />
       </div>
-
     </div>
   );
 };

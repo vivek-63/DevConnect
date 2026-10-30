@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+
+import { useState, useEffect } from "react";
 import { getAvatarGradient, getInitials } from "../../utils/avatar";
 
 const SIZES = {
@@ -35,27 +36,32 @@ const Avatar = ({
 }) => {
   const [hasError, setHasError] = useState(false);
 
-  // Clean raw src
-  const rawSrc = src && typeof src === "string" ? src.trim() : "";
-  const isSuspicious =
-    !rawSrc ||
-    rawSrc.includes("pravatar.cc") ||
-    rawSrc.includes("photo-1768970338809");
+  // Use the image only if the URL is valid and not a known placeholder.
+  const imageUrl = typeof src === "string" ? src.trim() : "";
 
+  const isPlaceholder =
+    !imageUrl ||
+    imageUrl.includes("pravatar.cc") ||
+    imageUrl.includes("photo-1768970338809");
+
+  // Reset the error state when the image URL changes.
   useEffect(() => {
     setHasError(false);
   }, [src]);
 
   const sizeClass = SIZES[size] || size || SIZES.md;
   const dotSize = DOT_SIZES[size] || "w-3 h-3";
+
   const initials = getInitials(name);
   const gradient = getAvatarGradient(name);
 
-  const shouldRenderInitials = isSuspicious || hasError;
+  const showInitials = isPlaceholder || hasError;
 
   return (
-    <div className={`relative inline-block flex-shrink-0 select-none ${className}`}>
-      {shouldRenderInitials ? (
+    <div
+      className={`relative inline-block flex-shrink-0 select-none ${className}`}
+    >
+      {showInitials ? (
         <div
           className={`${sizeClass} rounded-full bg-gradient-to-tr ${gradient} text-white font-bold flex items-center justify-center shadow-inner tracking-tight border border-white/20`}
           title={name}
@@ -64,7 +70,7 @@ const Avatar = ({
         </div>
       ) : (
         <img
-          src={rawSrc}
+          src={imageUrl}
           alt={alt || name}
           onError={() => setHasError(true)}
           className={`${sizeClass} rounded-full object-cover border border-slate-200/60 shadow-sm`}
@@ -73,13 +79,13 @@ const Avatar = ({
 
       {showStatus && (
         <span
-          className={`absolute ${dotSize} rounded-full border-2 border-white ${
-            isOnline ? "bg-emerald-500 ring-1 ring-emerald-200" : "bg-slate-300"
-          } ${
-            statusPosition === "bottom-right"
+          className={`absolute ${dotSize} rounded-full border-2 border-white ${isOnline
+              ? "bg-emerald-500 ring-1 ring-emerald-200"
+              : "bg-slate-300"
+            } ${statusPosition === "bottom-right"
               ? "bottom-0 right-0"
               : "top-0 right-0"
-          }`}
+            }`}
           title={isOnline ? "Online" : "Offline"}
         />
       )}

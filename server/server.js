@@ -7,59 +7,35 @@ const { setIO } = require("./src/socket/socketInstance");
 const prisma = require("./src/config/database");
 const app = require("./app");
 
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = process.env.PORT || 8080;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
-const DB_CONNECT_TIMEOUT_MS = 10000;
 
-function describeDatabaseTarget(databaseUrl) {
-  if (!databaseUrl) return "not set";
-  try {
-    const parsed = new URL(databaseUrl);
-    return `${parsed.hostname}:${parsed.port || 5432}${parsed.pathname}`;
-  } catch {
-    return "invalid DATABASE_URL";
-  }
-}
-
-function connectWithTimeout() {
-  return Promise.race([
-    prisma.$connect(),
-    new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(
-          new Error(
-            `Timed out connecting to PostgreSQL after ${DB_CONNECT_TIMEOUT_MS}ms. Is the database running and is DATABASE_URL correct?`
-          )
-        );
-      }, DB_CONNECT_TIMEOUT_MS);
-    }),
-  ]);
-}
-
-async function start() {
+async function startServer() {
+  // Check that the required environment variables are present
   if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL is missing. Add it to server/.env");
+    console.log("DATABASE_URL is missing. Add it to server/.env");
     process.exit(1);
   }
 
   if (!process.env.JWT_SECRET) {
-    console.error("JWT_SECRET is missing. Add it to server/.env");
+    console.log("JWT_SECRET is missing. Add it to server/.env");
     process.exit(1);
   }
 
-  console.log("Connecting to database:", describeDatabaseTarget(process.env.DATABASE_URL));
-
+  // Connect to the database
   try {
-    await connectWithTimeout();
+    await prisma.$connect();
     await prisma.$queryRaw`SELECT 1`;
-    console.log("Database connection verified");
+    console.log("Database connected");
   } catch (error) {
-    console.error("Database connection failed:", error.message);
-    await prisma.$disconnect().catch(() => {});
+    console.log("Database connection failed:", error.message);
+    await prisma.$disconnect();
     process.exit(1);
   }
 
+  // Create the HTTP server and attach socket.io to it
   const server = http.createServer(app);
+
   const io = new Server(server, {
     cors: {
       origin: CLIENT_ORIGIN,
@@ -70,19 +46,19 @@ async function start() {
   setIO(io);
   initializeSocket(io);
 
+  // Handle server errors (like the port already being used)
   server.on("error", (error) => {
     if (error.code === "EADDRINUSE") {
-      console.error(`Port ${PORT} is already in use. Stop the other process or set PORT in .env`);
-      process.exit(1);
+      console.log(`Port ${PORT} is already in use. Stop the other process or change PORT in .env`);
+    } else {
+      console.log("Server error:", error.message);
     }
-    console.error("HTTP server error:", error.message);
     process.exit(1);
   });
 
   server.listen(PORT, () => {
-    console.log(`DevConnect API listening on http://localhost:${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
-start();
+startServer()

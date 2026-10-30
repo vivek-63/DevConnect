@@ -2,9 +2,23 @@ const prisma = require("../config/database");
 const sendMessage = require("../utils/Message");
 const AppError = require("../utils/AppError");
 
-// ===============================
-// CREATE MESSAGE
-// ===============================
+// Find the conversation, but only if the user is part of it
+async function findMyConversation(conversationId, userId) {
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [{ user1Id: userId }, { user2Id: userId }],
+    },
+  });
+
+  if (!conversation) {
+    throw new AppError("You are not a participant in this conversation", 403);
+  }
+
+  return conversation;
+}
+
+// Send a new message
 module.exports.createMessage = async (req, res) => {
   const { conversationId, content } = req.body;
   const senderId = req.user.id;
@@ -12,41 +26,14 @@ module.exports.createMessage = async (req, res) => {
   const parsedConversationId = Number(conversationId);
 
   if (Number.isNaN(parsedConversationId)) {
-    throw new AppError(
-      "Invalid conversation ID",
-      400
-    );
+    throw new AppError("Invalid conversation ID", 400);
   }
 
   if (!content || !content.trim()) {
-    throw new AppError(
-      "Message content is required",
-      400
-    );
+    throw new AppError("Message content is required", 400);
   }
 
-  const conversation =
-    await prisma.conversation.findFirst({
-      where: {
-        id: parsedConversationId,
-
-        OR: [
-          {
-            user1Id: senderId,
-          },
-          {
-            user2Id: senderId,
-          },
-        ],
-      },
-    });
-
-  if (!conversation) {
-    throw new AppError(
-      "You are not a participant in this conversation",
-      403
-    );
-  }
+  const conversation = await findMyConversation(parsedConversationId, senderId);
 
   const newMessage = await sendMessage({
     conversationId: parsedConversationId,
@@ -61,67 +48,26 @@ module.exports.createMessage = async (req, res) => {
   });
 };
 
-
-// ===============================
-// GET MESSAGES
-// ===============================
+// Get all messages of a conversation
 module.exports.getMessage = async (req, res) => {
-  const conversationId = Number(
-    req.params.conversationId
-  );
-
+  const conversationId = Number(req.params.conversationId);
   const userId = req.user.id;
 
   if (Number.isNaN(conversationId)) {
-    throw new AppError(
-      "Invalid conversation ID",
-      400
-    );
+    throw new AppError("Invalid conversation ID", 400);
   }
 
-  const conversation =
-    await prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
+  await findMyConversation(conversationId, userId);
 
-        OR: [
-          {
-            user1Id: userId,
-          },
-          {
-            user2Id: userId,
-          },
-        ],
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    include: {
+      sender: {
+        select: { id: true, username: true, avatar: true },
       },
-    });
-
-  if (!conversation) {
-    throw new AppError(
-      "You are not a participant in this conversation",
-      403
-    );
-  }
-
-  const messages =
-    await prisma.message.findMany({
-      where: {
-        conversationId,
-      },
-
-      include: {
-        sender: {
-          select: {
-            id: true,
-            username: true,
-            avatar: true,
-          },
-        },
-      },
-
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
+    },
+    orderBy: { createdAt: "asc" },
+  });
 
   res.status(200).json({
     success: true,
@@ -129,66 +75,25 @@ module.exports.getMessage = async (req, res) => {
   });
 };
 
-
-// ===============================
-// MARK MESSAGES AS READ
-// ===============================
-module.exports.markMessagesAsRead = async (
-  req,
-  res
-) => {
-  const conversationId = Number(
-    req.params.conversationId
-  );
-
+// Mark the other person's messages as read
+module.exports.markMessagesAsRead = async (req, res) => {
+  const conversationId = Number(req.params.conversationId);
   const userId = req.user.id;
 
   if (Number.isNaN(conversationId)) {
-    throw new AppError(
-      "Invalid conversation ID",
-      400
-    );
+    throw new AppError("Invalid conversation ID", 400);
   }
 
-  const conversation =
-    await prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
+  await findMyConversation(conversationId, userId);
 
-        OR: [
-          {
-            user1Id: userId,
-          },
-          {
-            user2Id: userId,
-          },
-        ],
-      },
-    });
-
-  if (!conversation) {
-    throw new AppError(
-      "You are not a participant in this conversation",
-      403
-    );
-  }
-
-  const result =
-    await prisma.message.updateMany({
-      where: {
-        conversationId,
-
-        senderId: {
-          not: userId,
-        },
-
-        isRead: false,
-      },
-
-      data: {
-        isRead: true,
-      },
-    });
+  const result = await prisma.message.updateMany({
+    where: {
+      conversationId,
+      senderId: { not: userId },
+      isRead: false,
+    },
+    data: { isRead: true },
+  });
 
   res.status(200).json({
     success: true,

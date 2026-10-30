@@ -2,20 +2,29 @@ const prisma = require("../config/database");
 const sendNotification = require("../utils/Notification");
 const AppError = require("../utils/AppError");
 
-// ===============================
-// FOLLOW USER
-// ===============================
+// The user fields we send for follower / following lists
+const userFields = {
+  id: true,
+  username: true,
+  avatar: true,
+  bio: true,
+  designation: true,
+};
+
+// Follow a user
 module.exports.followUser = async (req, res) => {
+  const myId = req.user.id;
   const targetUserId = Number(req.params.id);
 
   if (Number.isNaN(targetUserId)) {
     throw new AppError("Invalid user ID", 400);
   }
 
-  if (targetUserId === req.user.id) {
+  if (targetUserId === myId) {
     throw new AppError("You cannot follow yourself", 400);
   }
 
+  // Check that the user exists
   const targetUser = await prisma.user.findUnique({
     where: { id: targetUserId },
     select: { id: true, username: true },
@@ -25,10 +34,11 @@ module.exports.followUser = async (req, res) => {
     throw new AppError("User not found", 404);
   }
 
+  // Check if already following
   const existingFollow = await prisma.follow.findUnique({
     where: {
       followerId_followingId: {
-        followerId: req.user.id,
+        followerId: myId,
         followingId: targetUserId,
       },
     },
@@ -44,14 +54,15 @@ module.exports.followUser = async (req, res) => {
 
   const follow = await prisma.follow.create({
     data: {
-      followerId: req.user.id,
+      followerId: myId,
       followingId: targetUserId,
     },
   });
 
+  // Let the other user know
   await sendNotification({
     receiverId: targetUserId,
-    senderId: req.user.id,
+    senderId: myId,
     type: "FOLLOW",
     message: "started following you",
   });
@@ -63,24 +74,23 @@ module.exports.followUser = async (req, res) => {
   });
 };
 
-// ===============================
-// UNFOLLOW USER
-// ===============================
+// Unfollow a user
 module.exports.unfollowUser = async (req, res) => {
+  const myId = req.user.id;
   const targetUserId = Number(req.params.id);
 
   if (Number.isNaN(targetUserId)) {
     throw new AppError("Invalid user ID", 400);
   }
 
-  if (targetUserId === req.user.id) {
+  if (targetUserId === myId) {
     throw new AppError("Invalid follow operation", 400);
   }
 
   const existingFollow = await prisma.follow.findUnique({
     where: {
       followerId_followingId: {
-        followerId: req.user.id,
+        followerId: myId,
         followingId: targetUserId,
       },
     },
@@ -96,7 +106,7 @@ module.exports.unfollowUser = async (req, res) => {
   await prisma.follow.delete({
     where: {
       followerId_followingId: {
-        followerId: req.user.id,
+        followerId: myId,
         followingId: targetUserId,
       },
     },
@@ -108,9 +118,7 @@ module.exports.unfollowUser = async (req, res) => {
   });
 };
 
-// ===============================
-// CHECK FOLLOW STATUS
-// ===============================
+// Check if the logged in user follows a user
 module.exports.checkFollowStatus = async (req, res) => {
   const targetUserId = Number(req.params.id);
 
@@ -133,58 +141,38 @@ module.exports.checkFollowStatus = async (req, res) => {
   });
 };
 
-// ===============================
-// GET FOLLOWERS OF A USER
-// ===============================
+// Get the followers of a user (own followers if no id is given)
 module.exports.getFollowers = async (req, res) => {
   const userId = Number(req.params.id || req.user.id);
 
   const followers = await prisma.follow.findMany({
     where: { followingId: userId },
     include: {
-      follower: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          bio: true,
-          designation: true,
-        },
-      },
+      follower: { select: userFields },
     },
     orderBy: { createdAt: "desc" },
   });
 
   return res.status(200).json({
     success: true,
-    followers: followers.map((f) => f.follower),
+    followers: followers.map((item) => item.follower),
   });
 };
 
-// ===============================
-// GET FOLLOWING OF A USER
-// ===============================
+// Get the list of people a user is following (own list if no id is given)
 module.exports.getFollowing = async (req, res) => {
   const userId = Number(req.params.id || req.user.id);
 
   const following = await prisma.follow.findMany({
     where: { followerId: userId },
     include: {
-      following: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          bio: true,
-          designation: true,
-        },
-      },
+      following: { select: userFields },
     },
     orderBy: { createdAt: "desc" },
   });
 
   return res.status(200).json({
     success: true,
-    following: following.map((f) => f.following),
+    following: following.map((item) => item.following),
   });
 };

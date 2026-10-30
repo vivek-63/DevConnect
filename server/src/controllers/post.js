@@ -2,9 +2,33 @@ const prisma = require("../config/database");
 const sendNotification = require("../utils/Notification");
 const AppError = require("../utils/AppError");
 
-// ===============================
-// CREATE POST
-// ===============================
+// Author fields we send with every post
+const authorFields = {
+  id: true,
+  username: true,
+  avatar: true,
+  designation: true,
+};
+
+// Author fields we send with every comment
+const commentAuthorFields = {
+  id: true,
+  username: true,
+  avatar: true,
+};
+
+// The extra data we attach to a post: author, whether this user liked it, and counts
+function postInclude(userId) {
+  return {
+    author: { select: authorFields },
+    likes: { where: { userId } },
+    _count: {
+      select: { likes: true, comments: true },
+    },
+  };
+}
+
+// Create a new post
 module.exports.createPost = async (req, res) => {
   const { content, image } = req.body;
 
@@ -18,27 +42,7 @@ module.exports.createPost = async (req, res) => {
       image: image?.trim() || null,
       authorId: req.user.id,
     },
-    include: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
-      likes: {
-        where: {
-          userId: req.user.id,
-        },
-      },
-      _count: {
-        select: {
-          likes: true,
-          comments: true,
-        },
-      },
-    },
+    include: postInclude(req.user.id),
   });
 
   return res.status(201).json({
@@ -48,53 +52,22 @@ module.exports.createPost = async (req, res) => {
   });
 };
 
-// ===============================
-// GET FEED
-// ===============================
+// Get the feed (latest posts first, with the 5 newest comments of each)
 module.exports.getFeed = async (req, res) => {
   const userId = req.user?.id || 0;
 
   const posts = await prisma.post.findMany({
     include: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
-      likes: {
-        where: {
-          userId: userId,
-        },
-      },
+      ...postInclude(userId),
       comments: {
         take: 5,
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { createdAt: "desc" },
         include: {
-          author: {
-            select: {
-              id: true,
-              username: true,
-              avatar: true,
-            },
-          },
-        },
-      },
-      
-      _count: {
-        select: {
-          likes: true,
-          comments: true,
+          author: { select: commentAuthorFields },
         },
       },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
   return res.status(200).json(
@@ -105,46 +78,18 @@ module.exports.getFeed = async (req, res) => {
   );
 };
 
-// ===============================
-// GET USER'S OWN POSTS
-// ===============================
+// Get the logged in user's own posts
 module.exports.getUserPost = async (req, res) => {
   const posts = await prisma.post.findMany({
-    where: {
-      authorId: req.user.id,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
-      likes: {
-        where: {
-          userId: req.user.id,
-        },
-      },
-      _count: {
-        select: {
-          likes: true,
-          comments: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
+    where: { authorId: req.user.id },
+    include: postInclude(req.user.id),
+    orderBy: { createdAt: "desc" },
   });
 
   return res.status(200).json(posts);
 };
 
-// ===============================
-// GET SINGLE POST
-// ===============================
+// Get a single post with all its comments
 module.exports.getPost = async (req, res) => {
   const postId = Number(req.params.id);
 
@@ -153,41 +98,13 @@ module.exports.getPost = async (req, res) => {
   }
 
   const post = await prisma.post.findUnique({
-    where: {
-      id: postId,
-    },
+    where: { id: postId },
     include: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
-      likes: {
-        where: {
-          userId: req.user?.id || 0,
-        },
-      },
+      ...postInclude(req.user?.id || 0),
       comments: {
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { createdAt: "desc" },
         include: {
-          author: {
-            select: {
-              id: true,
-              username: true,
-              avatar: true,
-            },
-          },
-        },
-      },
-      _count: {
-        select: {
-          likes: true,
-          comments: true,
+          author: { select: commentAuthorFields },
         },
       },
     },
@@ -200,9 +117,7 @@ module.exports.getPost = async (req, res) => {
   return res.status(200).json(post);
 };
 
-// ===============================
-// UPDATE POST
-// ===============================
+// Update a post (only the owner can do this)
 module.exports.updatePost = async (req, res) => {
   const postId = Number(req.params.id);
 
@@ -225,35 +140,21 @@ module.exports.updatePost = async (req, res) => {
 
   const { content, image } = req.body;
 
+  // Only update the fields that were sent
+  const dataToUpdate = {};
+
+  if (content !== undefined) {
+    dataToUpdate.content = content.trim();
+  }
+
+  if (image !== undefined) {
+    dataToUpdate.image = image?.trim() || null;
+  }
+
   const post = await prisma.post.update({
-    where: {
-      id: postId,
-    },
-    data: {
-      ...(content !== undefined ? { content: content.trim() } : {}),
-      ...(image !== undefined ? { image: image?.trim() || null } : {}),
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
-      },
-      likes: {
-        where: {
-          userId: req.user.id,
-        },
-      },
-      _count: {
-        select: {
-          likes: true,
-          comments: true,
-        },
-      },
-    },
+    where: { id: postId },
+    data: dataToUpdate,
+    include: postInclude(req.user.id),
   });
 
   return res.status(200).json({
@@ -263,9 +164,7 @@ module.exports.updatePost = async (req, res) => {
   });
 };
 
-// ===============================
-// DELETE POST
-// ===============================
+// Delete a post (only the owner can do this)
 module.exports.deletePost = async (req, res) => {
   const postId = Number(req.params.id);
 
@@ -286,7 +185,7 @@ module.exports.deletePost = async (req, res) => {
     throw new AppError("You are not authorized to delete this post", 403);
   }
 
-  // Delete comments and likes first to avoid FK constraint violations
+  // Delete comments and likes first, then the post itself
   await prisma.$transaction([
     prisma.comment.deleteMany({ where: { postId } }),
     prisma.like.deleteMany({ where: { postId } }),
@@ -299,9 +198,7 @@ module.exports.deletePost = async (req, res) => {
   });
 };
 
-// ===============================
-// LIKE POST
-// ===============================
+// Like a post
 module.exports.likePost = async (req, res) => {
   const postId = Number(req.params.id);
 
@@ -318,6 +215,7 @@ module.exports.likePost = async (req, res) => {
     throw new AppError("Post not found", 404);
   }
 
+  // Check if the user already liked this post
   const existingLike = await prisma.like.findUnique({
     where: {
       userId_postId: {
@@ -342,7 +240,7 @@ module.exports.likePost = async (req, res) => {
     },
   });
 
-  // Real-time notification if not own post
+  // Notify the post owner (but not if they liked their own post)
   if (post.authorId !== req.user.id) {
     await sendNotification({
       receiverId: post.authorId,
@@ -359,9 +257,7 @@ module.exports.likePost = async (req, res) => {
   });
 };
 
-// ===============================
-// UNLIKE POST
-// ===============================
+// Unlike a post
 module.exports.unlikePost = async (req, res) => {
   const postId = Number(req.params.id);
 
@@ -400,24 +296,7 @@ module.exports.unlikePost = async (req, res) => {
   });
 };
 
-const savedPostInclude = {
-  author: {
-    select: {
-      id: true,
-      username: true,
-      avatar: true,
-      designation: true,
-    },
-  },
-  likes: true,
-  _count: {
-    select: {
-      likes: true,
-      comments: true,
-    },
-  },
-};
-
+// Save a post
 module.exports.savePost = async (req, res) => {
   const postId = Number(req.params.id);
 
@@ -434,6 +313,7 @@ module.exports.savePost = async (req, res) => {
     throw new AppError("Post not found", 404);
   }
 
+  // upsert = create it, or do nothing if it already exists
   const saved = await prisma.savedPost.upsert({
     where: {
       userId_postId: {
@@ -455,6 +335,7 @@ module.exports.savePost = async (req, res) => {
   });
 };
 
+// Remove a post from saved
 module.exports.unsavePost = async (req, res) => {
   const postId = Number(req.params.id);
 
@@ -475,17 +356,13 @@ module.exports.unsavePost = async (req, res) => {
   });
 };
 
+// Get all posts saved by the logged in user
 module.exports.getSavedPosts = async (req, res) => {
   const saved = await prisma.savedPost.findMany({
     where: { userId: req.user.id },
     include: {
       post: {
-        include: {
-          ...savedPostInclude,
-          likes: {
-            where: { userId: req.user.id },
-          },
-        },
+        include: postInclude(req.user.id),
       },
     },
     orderBy: { createdAt: "desc" },

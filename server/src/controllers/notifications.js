@@ -1,35 +1,23 @@
 const prisma = require("../config/database");
 const AppError = require("../utils/AppError");
 
-// ===============================
-// GET NOTIFICATIONS
-// ===============================
+// Get the latest 50 notifications and the unread count
 module.exports.getNotifications = async (req, res) => {
+  const userId = req.user.id;
+
   const notifications = await prisma.notification.findMany({
-    where: {
-      receiverId: req.user.id,
-    },
+    where: { receiverId: userId },
     include: {
       sender: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-          designation: true,
-        },
+        select: { id: true, username: true, avatar: true, designation: true },
       },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
     take: 50,
   });
 
   const unreadCount = await prisma.notification.count({
-    where: {
-      receiverId: req.user.id,
-      isRead: false,
-    },
+    where: { receiverId: userId, isRead: false },
   });
 
   return res.status(200).json({
@@ -39,18 +27,11 @@ module.exports.getNotifications = async (req, res) => {
   });
 };
 
-// ===============================
-// MARK ALL AS READ
-// ===============================
+// Mark all notifications as read
 module.exports.markAllAsRead = async (req, res) => {
   await prisma.notification.updateMany({
-    where: {
-      receiverId: req.user.id,
-      isRead: false,
-    },
-    data: {
-      isRead: true,
-    },
+    where: { receiverId: req.user.id, isRead: false },
+    data: { isRead: true },
   });
 
   return res.status(200).json({
@@ -59,9 +40,7 @@ module.exports.markAllAsRead = async (req, res) => {
   });
 };
 
-// ===============================
-// MARK SINGLE AS READ
-// ===============================
+// Mark one notification as read
 module.exports.markAsRead = async (req, res) => {
   const id = Number(req.params.id);
 
@@ -73,6 +52,7 @@ module.exports.markAsRead = async (req, res) => {
     where: { id },
   });
 
+  // Only the receiver can touch their own notification
   if (!notification || notification.receiverId !== req.user.id) {
     throw new AppError("Notification not found", 404);
   }
@@ -88,9 +68,7 @@ module.exports.markAsRead = async (req, res) => {
   });
 };
 
-// ===============================
-// DELETE NOTIFICATION
-// ===============================
+// Delete one notification
 module.exports.deleteNotification = async (req, res) => {
   const id = Number(req.params.id);
 
@@ -102,6 +80,7 @@ module.exports.deleteNotification = async (req, res) => {
     where: { id },
   });
 
+  // Only the receiver can touch their own notification
   if (!notification || notification.receiverId !== req.user.id) {
     throw new AppError("Notification not found", 404);
   }

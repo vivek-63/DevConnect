@@ -2,37 +2,22 @@ const prisma = require("../config/database");
 const sendNotification = require("../utils/Notification");
 const AppError = require("../utils/AppError");
 
-// ===============================
-// GET COMMENTS
-// ===============================
+// Get all comments of a post
 module.exports.getComments = async (req, res) => {
   const postId = Number(req.params.id);
 
   if (Number.isNaN(postId)) {
-    throw new AppError(
-      "Invalid post ID",
-      400
-    );
+    throw new AppError("Invalid post ID", 400);
   }
 
   const comments = await prisma.comment.findMany({
-    where: {
-      postId,
-    },
-
+    where: { postId },
     include: {
       author: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-        },
+        select: { id: true, username: true, avatar: true },
       },
     },
-
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
   res.status(200).json({
@@ -41,68 +26,44 @@ module.exports.getComments = async (req, res) => {
   });
 };
 
-
-// ===============================
-// CREATE COMMENT
-// ===============================
+// Add a comment on a post
 module.exports.createComment = async (req, res) => {
   const postId = Number(req.params.id);
 
   if (Number.isNaN(postId)) {
-    throw new AppError(
-      "Invalid post ID",
-      400
-    );
+    throw new AppError("Invalid post ID", 400);
   }
 
   const content = req.body.content?.trim();
 
   if (!content) {
-    throw new AppError(
-      "Comment content is required",
-      400
-    );
+    throw new AppError("Comment content is required", 400);
   }
 
+  // Check that the post exists
   const post = await prisma.post.findUnique({
-    where: {
-      id: postId,
-    },
-
-    select: {
-      id: true,
-      authorId: true,
-    },
+    where: { id: postId },
+    select: { id: true, authorId: true },
   });
 
   if (!post) {
-    throw new AppError(
-      "Post not found",
-      404
-    );
+    throw new AppError("Post not found", 404);
   }
 
   const comment = await prisma.comment.create({
     data: {
       content,
-
       authorId: req.user.id,
-
       postId,
     },
-
     include: {
       author: {
-        select: {
-          id: true,
-          username: true,
-          avatar: true,
-        },
+        select: { id: true, username: true, avatar: true },
       },
     },
   });
 
-  // Don't notify yourself
+  // Notify the post owner (but not if they commented on their own post)
   if (post.authorId !== req.user.id) {
     await sendNotification({
       receiverId: post.authorId,
@@ -119,50 +80,29 @@ module.exports.createComment = async (req, res) => {
   });
 };
 
-
-// ===============================
-// DELETE COMMENT
-// ===============================
+// Delete a comment (only the comment owner can do this)
 module.exports.deleteComment = async (req, res) => {
   const commentId = Number(req.params.id);
 
   if (Number.isNaN(commentId)) {
-    throw new AppError(
-      "Invalid comment ID",
-      400
-    );
+    throw new AppError("Invalid comment ID", 400);
   }
 
-  const comment =
-    await prisma.comment.findUnique({
-      where: {
-        id: commentId,
-      },
-
-      select: {
-        id: true,
-        authorId: true,
-      },
-    });
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { id: true, authorId: true },
+  });
 
   if (!comment) {
-    throw new AppError(
-      "Comment not found",
-      404
-    );
+    throw new AppError("Comment not found", 404);
   }
 
   if (comment.authorId !== req.user.id) {
-    throw new AppError(
-      "You are not authorized to delete this comment",
-      403
-    );
+    throw new AppError("You are not authorized to delete this comment", 403);
   }
 
   await prisma.comment.delete({
-    where: {
-      id: commentId,
-    },
+    where: { id: commentId },
   });
 
   res.status(200).json({

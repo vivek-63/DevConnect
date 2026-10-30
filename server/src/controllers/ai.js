@@ -1,19 +1,11 @@
-// server/src/controllers/ai.js
 const prisma = require("../config/database");
 const AppError = require("../utils/AppError");
 const aiService = require("../services/aiService");
 
-async function runAI(fn) {
-  try {
-    return await fn();
-  } catch (error) {
-    throw new AppError(error.message || "AI request failed", 502);
-  }
-}
-
 // Check AI status
 module.exports.getStatus = async (req, res) => {
   const status = aiService.getAIProviderInfo();
+
   return res.status(200).json({
     success: true,
     ...status,
@@ -25,7 +17,7 @@ module.exports.reviewProfile = async (req, res) => {
   const userId = req.user.id;
   const { targetRole } = req.body;
 
-  // Fetch developer's real profile from database
+  // Get the user's profile from the database
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -50,21 +42,25 @@ module.exports.reviewProfile = async (req, res) => {
     throw new AppError("User profile not found", 404);
   }
 
-  const review = await runAI(() => aiService.reviewProfile({
-    username: user.username,
-    bio: user.bio,
-    skills: user.skills || [],
-    college: user.college,
-    designation: user.designation,
-    github: user.github,
-    linkedin: user.linkedin,
-    targetRole: targetRole || user.designation,
-  }));
+  try {
+    const review = await aiService.reviewProfile({
+      username: user.username,
+      bio: user.bio,
+      skills: user.skills || [],
+      college: user.college,
+      designation: user.designation,
+      github: user.github,
+      linkedin: user.linkedin,
+      targetRole: targetRole || user.designation,
+    });
 
-  return res.status(200).json({
-    success: true,
-    review,
-  });
+    return res.status(200).json({
+      success: true,
+      review,
+    });
+  } catch (error) {
+    throw new AppError(error.message || "AI request failed", 502);
+  }
 };
 
 // B. AI Resume Analyzer
@@ -79,17 +75,19 @@ module.exports.analyzeResume = async (req, res) => {
     throw new AppError("Resume text exceeds 15,000 characters limit. Please shorten or provide core sections.", 400);
   }
 
-  const analysis = await runAI(() =>
-    aiService.analyzeResume({
+  try {
+    const analysis = await aiService.analyzeResume({
       resumeText: resumeText.trim(),
       targetRole: targetRole?.trim() || "Full Stack Developer",
-    })
-  );
+    });
 
-  return res.status(200).json({
-    success: true,
-    analysis,
-  });
+    return res.status(200).json({
+      success: true,
+      analysis,
+    });
+  } catch (error) {
+    throw new AppError(error.message || "AI request failed", 502);
+  }
 };
 
 // C. AI Post Generator
@@ -100,20 +98,22 @@ module.exports.generatePost = async (req, res) => {
     throw new AppError("Please provide at least a topic, project, concept, or learning experience", 400);
   }
 
-  const result = await runAI(() =>
-    aiService.generatePostDraft({
+  try {
+    const result = await aiService.generatePostDraft({
       topic: topic?.trim(),
       project: project?.trim(),
       experience: experience?.trim(),
       concept: concept?.trim(),
       tone: tone || "Professional",
-    })
-  );
+    });
 
-  return res.status(200).json({
-    success: true,
-    ...result,
-  });
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    throw new AppError(error.message || "AI request failed", 502);
+  }
 };
 
 // D. AI Post Improver
@@ -124,18 +124,20 @@ module.exports.improvePost = async (req, res) => {
     throw new AppError("Draft text is required to suggest improvements", 400);
   }
 
-  const result = await runAI(() =>
-    aiService.improvePostDraft({
+  try {
+    const result = await aiService.improvePostDraft({
       draft: draft.trim(),
       goal: goal || "clarity",
       tone: tone || "Professional",
-    })
-  );
+    });
 
-  return res.status(200).json({
-    success: true,
-    ...result,
-  });
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    throw new AppError(error.message || "AI request failed", 502);
+  }
 };
 
 // E. AI Coding Assistant
@@ -150,19 +152,21 @@ module.exports.codeAssistant = async (req, res) => {
     throw new AppError("Prompt exceeds maximum length (4,000 characters)", 400);
   }
 
-  const result = await runAI(() =>
-    aiService.runCodingAssistant({
+  try {
+    const result = await aiService.runCodingAssistant({
       prompt: prompt.trim(),
       code: code?.trim() || "",
       language: language || "JavaScript",
       mode: mode || "explain",
-    })
-  );
+    });
 
-  return res.status(200).json({
-    success: true,
-    ...result,
-  });
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    throw new AppError(error.message || "AI request failed", 502);
+  }
 };
 
 // F. AI Learning Roadmap Generator
@@ -173,23 +177,29 @@ module.exports.learningRoadmap = async (req, res) => {
     throw new AppError("Target role is required to generate a learning roadmap", 400);
   }
 
-  const result = await runAI(() =>
-    aiService.generateLearningRoadmap({
+  // Skills can come as an array or as a comma separated string
+  let skillsList = [];
+  if (Array.isArray(currentSkills)) {
+    skillsList = currentSkills;
+  } else if (currentSkills) {
+    skillsList = currentSkills.split(",").map((skill) => skill.trim());
+  }
+
+  try {
+    const roadmap = await aiService.generateLearningRoadmap({
       targetRole: targetRole.trim(),
-      currentSkills: Array.isArray(currentSkills)
-        ? currentSkills
-        : currentSkills
-          ? currentSkills.split(",").map((s) => s.trim())
-          : [],
+      currentSkills: skillsList,
       experienceLevel: experienceLevel || "Beginner",
       studyTime: studyTime || "10 hours/week",
-    })
-  );
+    });
 
-  return res.status(200).json({
-    success: true,
-    roadmap: result,
-  });
+    return res.status(200).json({
+      success: true,
+      roadmap,
+    });
+  } catch (error) {
+    throw new AppError(error.message || "AI request failed", 502);
+  }
 };
 
 // G. AI Project Description Generator
@@ -200,21 +210,26 @@ module.exports.generateProjectDescription = async (req, res) => {
     throw new AppError("Project title is required", 400);
   }
 
-  const result = await runAI(() =>
-    aiService.generateProjectSummary({
+  // Tech stack can come as an array or as a comma separated string
+  let techList = [];
+  if (Array.isArray(techStack)) {
+    techList = techStack;
+  } else if (typeof techStack === "string") {
+    techList = techStack.split(",").map((tech) => tech.trim()).filter(Boolean);
+  }
+
+  try {
+    const result = await aiService.generateProjectSummary({
       title: title.trim(),
-      techStack: Array.isArray(techStack)
-        ? techStack
-        : typeof techStack === "string"
-          ? techStack.split(",").map((s) => s.trim()).filter(Boolean)
-          : [],
+      techStack: techList,
       highlights: highlights?.trim() || "",
-    })
-  );
+    });
 
-  return res.status(200).json({
-    success: true,
-    ...result,
-  });
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    throw new AppError(error.message || "AI request failed", 502);
+  }
 };
-

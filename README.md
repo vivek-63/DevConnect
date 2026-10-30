@@ -175,13 +175,4 @@ npm run dev
 
 ---
 
-## 🎯 Interview / Viva Talking Points
 
-1. **Why HTTP-only Cookies for JWT?**
-   Storing JWT tokens in HTTP-only cookies protects against Cross-Site Scripting (XSS) attacks because JavaScript cannot read or steal the token.
-2. **How does the Like System prevent race conditions and duplicate likes?**
-   Prisma schema defines `@@unique([userId, postId])` on the `Like` model. The backend controller checks for an existing like and catches duplicates idempotently, guaranteeing strict database-level integrity.
-3. **How do real-time notifications work?**
-   When an action occurs (e.g. someone likes your post), the backend creates a `Notification` record in PostgreSQL and looks up the recipient's socket ID in an in-memory user registry. If online, Socket.IO emits a `new_notification` event directly to their client socket, immediately bumping the badge count without polling.
-4. **Clean Cascade Handling:**
-   When deleting a post, database foreign-key relations are safely handled in an explicit Prisma transaction `prisma.$transaction([...])` to remove associated likes and comments first, preventing orphaned rows.

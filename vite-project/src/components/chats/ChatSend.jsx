@@ -1,7 +1,7 @@
+
 import { useState } from "react";
 import { Send } from "lucide-react";
 import { sendMessage } from "../../services/conversation";
-
 
 const ChatSend = ({ conversationId, setMessages, setConversations }) => {
   const [content, setContent] = useState("");
@@ -10,51 +10,72 @@ const ChatSend = ({ conversationId, setMessages, setConversations }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!content.trim() || !conversationId || sending) {
+    const messageContent = content.trim();
+
+    // Don't send empty messages or submit twice.
+    if (!messageContent || !conversationId || sending) {
       return;
     }
 
     try {
       setSending(true);
 
-      const res = await sendMessage(
+      // Send the message to the backend.
+      const response = await sendMessage(
         conversationId,
-        content.trim()
+        messageContent
       );
 
-      const rawMessage = res?.message || res;
-      if (rawMessage) {
+      const message = response?.message || response;
+
+      if (message) {
         const newMessage = {
-          ...rawMessage,
-          createdAt: rawMessage.createdAt || new Date().toISOString(),
+          ...message,
+          createdAt: message.createdAt || new Date().toISOString(),
         };
 
-        // Immediately show the message without duplicating
-        setMessages((prev) => {
-          if (newMessage.id && prev.some((m) => m.id === newMessage.id)) {
-            return prev;
+        // Add the message without creating duplicates.
+        setMessages((previousMessages) => {
+          const alreadyExists = previousMessages.some(
+            (item) => item.id === newMessage.id
+          );
+
+          if (newMessage.id && alreadyExists) {
+            return previousMessages;
           }
-          return [...prev, newMessage];
+
+          return [...previousMessages, newMessage];
         });
 
-        // Update conversation sidebar last message & timestamp
+        // Update the conversation in the sidebar.
         if (typeof setConversations === "function") {
-          setConversations((prev) => {
-            const idx = prev.findIndex(
-              (c) => Number(c.conversationId) === Number(conversationId)
+          setConversations((previousConversations) => {
+            const conversationIndex = previousConversations.findIndex(
+              (item) =>
+                Number(item.conversationId) === Number(conversationId)
             );
-            if (idx === -1) return prev;
-            const updated = {
-              ...prev[idx],
+
+            if (conversationIndex === -1) {
+              return previousConversations;
+            }
+
+            const updatedConversation = {
+              ...previousConversations[conversationIndex],
               lastMessage: newMessage,
               updatedAt: newMessage.createdAt,
             };
-            const filtered = prev.filter((_, i) => i !== idx);
-            return [updated, ...filtered];
+
+            const otherConversations = previousConversations.filter(
+              (_, index) => index !== conversationIndex
+            );
+
+            // Move the updated conversation to the top.
+            return [updatedConversation, ...otherConversations];
           });
         }
       }
 
+      // Clear the input after a successful request.
       setContent("");
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -73,17 +94,15 @@ const ChatSend = ({ conversationId, setMessages, setConversations }) => {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Write a message..."
-        className="flex-1 bg-gray-100 rounded-xl px-4 py-3 outline-none
-                   focus:ring-2 focus:ring-violet-500"
+        aria-label="Write a message"
+        className="flex-1 bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-violet-500"
       />
 
       <button
         type="submit"
         disabled={sending || !content.trim()}
-        className="w-11 h-11 flex items-center justify-center
-                   rounded-full bg-violet-600 text-white
-                   hover:bg-violet-700 disabled:opacity-50
-                   disabled:cursor-not-allowed"
+        aria-label="Send message"
+        className="w-11 h-11 flex items-center justify-center rounded-full bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Send size={19} />
       </button>

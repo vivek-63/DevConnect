@@ -1,10 +1,7 @@
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Phone,
-  Video,
-  MoreVertical,
-} from "lucide-react";
+import { Phone, Video, MoreVertical } from "lucide-react";
 
 import { socket } from "../../socket/socket";
 import Avatar from "../common/Avatar";
@@ -20,9 +17,7 @@ const ChatHeader = ({ user }) => {
 
     const userId = Number(user.id);
 
-    // ==================================
-    // Current online users
-    // ==================================
+    // Update status using the current list of online users.
     const handleOnlineUsers = (onlineUsers) => {
       const isUserOnline = onlineUsers.some(
         (id) => Number(id) === userId
@@ -31,83 +26,51 @@ const ChatHeader = ({ user }) => {
       setIsOnline(isUserOnline);
     };
 
-    // ==================================
-    // User comes online
-    // ==================================
+    // Update status when the user comes online.
     const handleUserOnline = (onlineUserId) => {
       if (Number(onlineUserId) === userId) {
         setIsOnline(true);
       }
     };
 
-    // ==================================
-    // User goes offline
-    // ==================================
+    // Update status when the user goes offline.
     const handleUserOffline = (offlineUserId) => {
       if (Number(offlineUserId) === userId) {
         setIsOnline(false);
       }
     };
 
-    socket.on(
-      "onlineUsers",
-      handleOnlineUsers
-    );
+    socket.on("onlineUsers", handleOnlineUsers);
+    socket.on("userOnline", handleUserOnline);
+    socket.on("userOffline", handleUserOffline);
 
-    socket.on(
-      "userOnline",
-      handleUserOnline
-    );
-
-    socket.on(
-      "userOffline",
-      handleUserOffline
-    );
-
-    // Ask server for current online users
+    // Request the current online users.
     if (socket.connected) {
       socket.emit("getOnlineUsers");
     }
 
+    // Remove listeners when the component changes or unmounts.
     return () => {
-      socket.off(
-        "onlineUsers",
-        handleOnlineUsers
-      );
-
-      socket.off(
-        "userOnline",
-        handleUserOnline
-      );
-
-      socket.off(
-        "userOffline",
-        handleUserOffline
-      );
+      socket.off("onlineUsers", handleOnlineUsers);
+      socket.off("userOnline", handleUserOnline);
+      socket.off("userOffline", handleUserOffline);
     };
   }, [user?.id]);
 
-  // ==================================
-  // No conversation selected
-  // ==================================
+  // Show a message when no conversation is selected.
   if (!user) {
     return (
       <div className="h-[88px] flex items-center px-6 border-b border-gray-200 bg-white">
-        <p className="text-gray-400">
-          Select a conversation
-        </p>
+        <p className="text-gray-400">Select a conversation</p>
       </div>
     );
   }
 
   return (
     <div className="h-[88px] flex items-center justify-between px-6 border-b border-gray-200 bg-white">
-
-      {/* =================================
-          User information
-      ================================= */}
+      {/* User information */}
       <div className="flex items-center gap-3.5">
-        <Link to={`/profile/${user.username}`} className="group">
+        <Link to={`/profile/${user.username}`}>
           <Avatar
             src={user.avatar}
             name={user.username}
@@ -117,7 +80,6 @@ const ChatHeader = ({ user }) => {
           />
         </Link>
 
-        {/* User details */}
         <div>
           <Link
             to={`/profile/${user.username}`}
@@ -129,6 +91,7 @@ const ChatHeader = ({ user }) => {
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <span>Developer</span>
             <span>•</span>
+
             <span
               className={
                 isOnline
@@ -142,49 +105,20 @@ const ChatHeader = ({ user }) => {
         </div>
       </div>
 
-      {/* =================================
-          Actions
-      ================================= */}
+      {/* Chat actions */}
       <div className="flex items-center gap-2">
-
-        <button
-          className="
-            rounded-full
-            p-2
-            hover:bg-violet-100
-            hover:text-violet-600
-            transition
-          "
-        >
+        <button type="button" aria-label="Start voice call" className="rounded-full p-2 hover:bg-violet-100 hover:text-violet-600 transition">
           <Phone size={20} />
         </button>
 
-        <button
-          className="
-            rounded-full
-            p-2
-            hover:bg-violet-100
-            hover:text-violet-600
-            transition
-          "
-        >
+        <button type="button" aria-label="Start video call" className="rounded-full p-2 hover:bg-violet-100 hover:text-violet-600 transition">
           <Video size={20} />
         </button>
 
-        <button
-          className="
-            rounded-full
-            p-2
-            hover:bg-violet-100
-            hover:text-violet-600
-            transition
-          "
-        >
+        <button type="button" aria-label="More options" className="rounded-full p-2 hover:bg-violet-100 hover:text-violet-600 transition">
           <MoreVertical size={20} />
         </button>
-
       </div>
-
     </div>
   );
 };

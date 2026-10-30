@@ -1,84 +1,56 @@
+
 import { useEffect, useRef, useState } from "react";
 
 import ConversationList from "../../components/chats/ConversationList";
 import ChatWindow from "../../components/chats/ChatWindow";
+import Sidebar from "../../components/sidebar";
 
 import { getConversations } from "../../services/conversation";
 import { socket } from "../../socket/socket";
-import Sidebar from "../../components/sidebar";
 import { useAuth } from "../../hooks/useAuth";
 
 const Chat = () => {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] =
-    useState(null);
 
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Keep latest selected conversation available
-  // inside socket event handlers
+  // Keeps the latest selected conversation available to socket handlers.
   const selectedConversationRef = useRef(null);
 
-  // ==========================================
-  // Keep ref synchronized
-  // ==========================================
+  // Keep the ref updated whenever the selected conversation changes.
   useEffect(() => {
-    selectedConversationRef.current =
-      selectedConversation;
+    selectedConversationRef.current = selectedConversation;
   }, [selectedConversation]);
 
-  // ==========================================
-  // Fetch conversations
-  // ==========================================
+  // Fetch conversations and restore the previously selected conversation.
   useEffect(() => {
     const fetchConversations = async () => {
       try {
         const data = await getConversations();
-
-        const conversationList = Array.isArray(data)
-          ? data
-          : [];
-
-        console.log(
-          "Conversations:",
-          conversationList
-        );
+        const conversationList = Array.isArray(data) ? data : [];
 
         setConversations(conversationList);
 
-        // ======================================
-        // Restore selected conversation
-        // after refresh
-        // ======================================
-        const savedConversationId =
-          sessionStorage.getItem(
-            "selectedConversationId"
-          );
+        const savedConversationId = sessionStorage.getItem(
+          "selectedConversationId"
+        );
 
         if (savedConversationId) {
-          const savedConversation =
-            conversationList.find(
-              (conversation) =>
-                Number(
-                  conversation.conversationId
-                ) === Number(savedConversationId)
-            );
+          const savedConversation = conversationList.find(
+            (conversation) =>
+              Number(conversation.conversationId) ===
+              Number(savedConversationId)
+          );
 
           if (savedConversation) {
-            setSelectedConversation(
-              savedConversation
-            );
-
-            selectedConversationRef.current =
-              savedConversation;
+            setSelectedConversation(savedConversation);
+            selectedConversationRef.current = savedConversation;
           }
         }
       } catch (error) {
-        console.error(
-          "Failed to fetch conversations:",
-          error
-        );
+        console.error("Failed to fetch conversations:", error);
       } finally {
         setLoading(false);
       }
@@ -87,9 +59,7 @@ const Chat = () => {
     fetchConversations();
   }, []);
 
-  // ==========================================
-  // Socket connection + registration
-  // ==========================================
+  // Connect the socket and register the logged-in user.
   useEffect(() => {
     if (!user?.id) return;
 
@@ -98,192 +68,90 @@ const Chat = () => {
     }
 
     socket.emit("register", Number(user.id));
-    console.log("Socket registered for user:", user.id);
   }, [user?.id]);
 
-  // ==========================================
-  // REALTIME MESSAGE
-  // ==========================================
+  // Handle incoming messages and update the conversation list.
   useEffect(() => {
     const handleNewMessage = (message) => {
-      console.log(
-        "🔥 REALTIME MESSAGE RECEIVED:",
-        message
-      );
+      if (!message?.conversationId) return;
 
-      if (!message?.conversationId) {
-        console.log(
-          "Invalid realtime message"
+      setConversations((previousConversations) => {
+        const conversationIndex = previousConversations.findIndex(
+          (conversation) =>
+            Number(conversation.conversationId) ===
+            Number(message.conversationId)
         );
 
-        return;
-      }
-
-      setConversations((prev) => {
-        const conversationIndex =
-          prev.findIndex(
-            (conversation) =>
-              Number(
-                conversation.conversationId
-              ) ===
-              Number(message.conversationId)
-          );
-
-        // ====================================
-        // Conversation doesn't exist
-        // ====================================
+        // Ignore messages for conversations not currently in the list.
         if (conversationIndex === -1) {
-          console.log(
-            "Conversation not found in sidebar:",
-            message.conversationId
-          );
-
-          return prev;
+          return previousConversations;
         }
 
-        const conversation =
-          prev[conversationIndex];
+        const conversation = previousConversations[conversationIndex];
 
-        // ====================================
-        // Check if currently open
-        // ====================================
         const currentConversationId =
-          selectedConversationRef.current
-            ?.conversationId;
+          selectedConversationRef.current?.conversationId;
 
         const isCurrentConversation =
           Number(currentConversationId) ===
           Number(message.conversationId);
 
-        // ====================================
-        // Update conversation
-        // ====================================
         const updatedConversation = {
           ...conversation,
-
           lastMessage: message,
-
-          updatedAt:
-            message.createdAt ||
-            new Date().toISOString(),
-
-          unreadCount:
-            isCurrentConversation
-              ? 0
-              : (conversation.unreadCount || 0) +
-                1,
+          updatedAt: message.createdAt || new Date().toISOString(),
+          unreadCount: isCurrentConversation
+            ? 0
+            : (conversation.unreadCount || 0) + 1,
         };
 
-        // ====================================
-        // Remove old position
-        // ====================================
-        const newList = prev.filter(
-          (_, index) =>
-            index !== conversationIndex
+        // Remove the conversation from its old position.
+        const remainingConversations = previousConversations.filter(
+          (_, index) => index !== conversationIndex
         );
 
-        // ====================================
-        // Move conversation to top
-        // ====================================
-        return [
-          updatedConversation,
-          ...newList,
-        ];
+        // Move the updated conversation to the top.
+        return [updatedConversation, ...remainingConversations];
       });
     };
 
-    socket.on(
-      "newMessage",
-      handleNewMessage
-    );
+    socket.on("newMessage", handleNewMessage);
 
     return () => {
-      socket.off(
-        "newMessage",
-        handleNewMessage
-      );
+      socket.off("newMessage", handleNewMessage);
     };
   }, []);
 
-  // ==========================================
-  // Select conversation
-  // ==========================================
-  const handleSelectConversation = (
-    conversation
-  ) => {
+  // Select a conversation and clear its unread count.
+  const handleSelectConversation = (conversation) => {
     if (!conversation) return;
 
-    console.log(
-      "Selected conversation:",
-      conversation
-    );
+    setSelectedConversation(conversation);
+    selectedConversationRef.current = conversation;
 
-    // Update state
-    setSelectedConversation(
-      conversation
-    );
-
-    // Update ref immediately
-    selectedConversationRef.current =
-      conversation;
-
-    // Save for refresh
     sessionStorage.setItem(
       "selectedConversationId",
       conversation.conversationId
     );
 
-    // Remove unread count
-    setConversations((prev) =>
-      prev.map((item) =>
-        Number(
-          item.conversationId
-        ) ===
-        Number(
-          conversation.conversationId
-        )
-          ? {
-              ...item,
-              unreadCount: 0,
-            }
+    setConversations((previousConversations) =>
+      previousConversations.map((item) =>
+        Number(item.conversationId) ===
+          Number(conversation.conversationId)
+          ? { ...item, unreadCount: 0 }
           : item
       )
     );
   };
 
-  // ==========================================
-  // Loading
-  // ==========================================
   if (loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">
-          Loading conversations...
-        </p>
+        <p className="text-gray-500">Loading conversations...</p>
       </div>
     );
   }
 
-  // ==========================================
-  // Total unread messages
-  // ==========================================
-  const unreadMessageCount =
-    conversations.reduce(
-      (total, conversation) =>
-        total +
-        (conversation.unreadCount || 0),
-      0
-    );
-
-  console.log(
-    "Unread messages:",
-    unreadMessageCount
-  );
-
-  // ==========================================
-  // UI
-  // ==========================================
- 
   return (
     <div className="h-[calc(100vh-64px)] flex overflow-hidden bg-slate-100">
       {/* Navigation Sidebar */}
@@ -309,8 +177,6 @@ const Chat = () => {
       </main>
     </div>
   );
-  
 };
-
 
 export default Chat;

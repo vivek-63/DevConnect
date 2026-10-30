@@ -1,49 +1,64 @@
-import React from "react";
+
 import Avatar from "../common/Avatar";
 
-const ConversationCard = ({
-  conversation,
-  active,
-  onClick,
-}) => {
+const ConversationCard = ({ conversation, active, onClick }) => {
   const user = conversation?.otherUser;
   const lastMessage = conversation?.lastMessage;
   const unreadCount = conversation?.unreadCount || 0;
 
+  // Format the time of the last message.
   const formatTime = (date) => {
-    if (!date) return "";
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return "";
+    if (!date) {
+      return "";
+    }
 
-    const now = new Date();
+    const messageDate = new Date(date);
+
+    if (isNaN(messageDate.getTime())) {
+      return "";
+    }
+
+    const today = new Date();
+
     const isToday =
-      d.getDate() === now.getDate() &&
-      d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear();
+      messageDate.getDate() === today.getDate() &&
+      messageDate.getMonth() === today.getMonth() &&
+      messageDate.getFullYear() === today.getFullYear();
 
     if (isToday) {
-      return d.toLocaleTimeString([], {
+      return messageDate.toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       });
     }
 
-    return d.toLocaleDateString([], {
+    return messageDate.toLocaleDateString([], {
       month: "short",
       day: "numeric",
     });
   };
 
+  const lastMessageTime = formatTime(
+    lastMessage?.createdAt || conversation?.updatedAt
+  );
+
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition ${
-        active
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick?.();
+        }
+      }}
+      className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition ${active
           ? "bg-violet-50 text-violet-900 border border-violet-100 shadow-sm"
           : "hover:bg-slate-50 border border-transparent"
-      }`}
+        }`}
     >
-      {/* Avatar */}
+      {/* User avatar */}
       <Avatar
         src={user?.avatar}
         name={user?.username || "Dev"}
@@ -52,7 +67,7 @@ const ConversationCard = ({
         isOnline={true}
       />
 
-      {/* Content */}
+      {/* Conversation details */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold text-slate-800 truncate text-sm">
@@ -60,10 +75,7 @@ const ConversationCard = ({
           </h3>
 
           <span className="text-[11px] text-slate-400 flex-shrink-0 font-medium">
-            {formatTime(
-              lastMessage?.createdAt ||
-              conversation?.updatedAt
-            )}
+            {lastMessageTime}
           </span>
         </div>
 
@@ -72,7 +84,7 @@ const ConversationCard = ({
             {lastMessage?.content || "Start a conversation..."}
           </p>
 
-          {/* Unread count */}
+          {/* Unread message count */}
           {unreadCount > 0 && (
             <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-violet-600 text-white text-[11px] font-bold flex items-center justify-center shadow-sm">
               {unreadCount}
