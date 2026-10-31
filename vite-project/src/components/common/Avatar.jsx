@@ -37,7 +37,13 @@ const Avatar = ({
   const [hasError, setHasError] = useState(false);
 
   // Use the image only if the URL is valid and not a known placeholder.
-  const imageUrl = typeof src === "string" ? src.trim() : "";
+  // Construct full URL for relative paths
+  const baseUrl = "http://localhost:8080";
+  let imageUrl = typeof src === "string" ? src.trim() : "";
+  // If the URL is relative (starts with '/'), prepend the base URL
+  if (imageUrl && imageUrl.startsWith("/")) {
+    imageUrl = `${baseUrl}${imageUrl}`;
+  }
 
   const isPlaceholder =
     !imageUrl ||
@@ -80,8 +86,8 @@ const Avatar = ({
       {showStatus && (
         <span
           className={`absolute ${dotSize} rounded-full border-2 border-white ${isOnline
-              ? "bg-emerald-500 ring-1 ring-emerald-200"
-              : "bg-slate-300"
+            ? "bg-emerald-500 ring-1 ring-emerald-200"
+            : "bg-slate-300"
             } ${statusPosition === "bottom-right"
               ? "bottom-0 right-0"
               : "top-0 right-0"

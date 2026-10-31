@@ -23,6 +23,13 @@ const { generalLimiter } = require("./src/middleware/RateLimit");
 const errorHandler = require("./src/middleware/errorHandler");
 
 const app = express();
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "DevConnect API is running 🚀",
+    environment: process.env.NODE_ENV
+  });
+});
 
 const CLIENT_ORIGIN =
   process.env.CLIENT_ORIGIN || "http://localhost:5173";

@@ -1,47 +1,47 @@
 import axios from 'axios'
 
 const api = axios.create({
-    baseURL: "http://localhost:8080",
-    withCredentials: true
+  baseURL: "http://localhost:8080",
+  withCredentials: true
 });
 
 export const getProfile =
-async()=>{
-try{
-    const res =
-    await api.get("/profile");
+  async () => {
+    try {
+      const res =
+        await api.get("/profile");
 
-    return res.data;
-    console.log(res.data);
-}catch(err){
-    console.log(err);
-}
-    
-};
+      return res.data;
+      console.log(res.data);
+    } catch (err) {
+      console.log(err);
+    }
+
+  };
 
 export const updateProfile =
-async(data)=>{
-try{
-    const res =
-    await api.put(
-        "/profile/edit",
-        data
-    );
+  async (data) => {
+    try {
+      const res =
+        await api.put(
+          "/profile/edit",
+          data
+        );
 
-    return res.data;
-}catch(err){
-    console.log(err);
-}
-    
-};
+      return res.data;
+    } catch (err) {
+      console.log(err);
+    }
+
+  };
 
 export const getPublicProfile =
-async (username) => {
+  async (username) => {
 
     const res =
-    await api.get(
+      await api.get(
         `/profile/${username}`
-    );
+      );
 
     return res.data;
-};
+  };

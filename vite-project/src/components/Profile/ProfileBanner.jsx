@@ -2,7 +2,10 @@ import React from "react";
 import Avatar from "../common/Avatar";
 
 function ProfileBanner({ user }) {
-  if (!user) return null;
+    if (!user) return null;
+
+  console.log('ProfileBanner avatar URL:', user.avatar);
+
 
   return (
     <div className="relative">
