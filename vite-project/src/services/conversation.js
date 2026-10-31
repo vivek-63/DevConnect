@@ -1,18 +1,18 @@
 import axios from 'axios'
 
-const api = axios.create({
-    baseURL: "http://localhost:8080",
-    withCredentials: true
+export const api = axios.create({
+  baseURL: "http://localhost:8080" || import.meta.env.VITE_API_URL,
+  withCredentials: true,
 });
 
-export const getConversations =async () => {
-   try{
-        const res = await api.get("/conversation");
-        console.log(res.data);
-        return res.data;
-    }catch(err){
-        console.log(err);
-    }
+export const getConversations = async () => {
+  try {
+    const res = await api.get("/conversation");
+    console.log(res.data);
+    return res.data;
+  } catch (err) {
+    console.log(err);
+  }
 };
 export const createConversation = async (receiverId) => {
   const res = await api.post("/conversation", {

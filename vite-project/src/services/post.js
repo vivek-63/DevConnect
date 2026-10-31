@@ -1,80 +1,80 @@
 import axios from 'axios'
 
-const api = axios.create({
-    baseURL: "http://localhost:8080",
-    withCredentials: true
+export const api = axios.create({
+    baseURL: "http://localhost:8080" || import.meta.env.VITE_API_URL,
+    withCredentials: true,
 });
 
 export const createPost =
-async (data) => {
+    async (data) => {
 
-    const res =
-    await api.post(
-        "/posts",
-        data
-    );
-    console.log(res.data);
-    return res.data;
-};
+        const res =
+            await api.post(
+                "/posts",
+                data
+            );
+        console.log(res.data);
+        return res.data;
+    };
 
 export const getFeed =
-async () => {
+    async () => {
 
-    const res =
-    await api.get(
-        "/feed"
-    );
+        const res =
+            await api.get(
+                "/feed"
+            );
 
-    return res.data;
-};
+        return res.data;
+    };
 
 export const getuserPosts =
-async () => {
+    async () => {
 
-    const res =
-    await api.get(
-        "/posts/user"
-    );
-    console.log(res.data);
+        const res =
+            await api.get(
+                "/posts/user"
+            );
+        console.log(res.data);
 
-    return res.data;
-};
+        return res.data;
+    };
 
 
-export const deletePost = async(id)=>{
-    try{
-       const res = await api.delete(`/post/${id}`);
-       return res.data; 
-    }catch(err){
+export const deletePost = async (id) => {
+    try {
+        const res = await api.delete(`/post/${id}`);
+        return res.data;
+    } catch (err) {
         console.log(err);
     }
 }
 
-export const updatePost = async(id, data)=>{
-    try{
-       const res = await api.put(`/posts/${id}`, data);
-       return res.data; 
-    }catch(err){
+export const updatePost = async (id, data) => {
+    try {
+        const res = await api.put(`/posts/${id}`, data);
+        return res.data;
+    } catch (err) {
         console.log(err);
     }
 }
 export const getPost =
-async (id) => {
+    async (id) => {
 
-    const res =
-    await api.get(
-        `/posts/${id}`
-    );
+        const res =
+            await api.get(
+                `/posts/${id}`
+            );
 
-    return res.data;
-};
+        return res.data;
+    };
 
-export const likePost = async(id) => {
+export const likePost = async (id) => {
     const res = await api.post(`/post/${id}/like`);
     return res.data;
-} 
+}
 
-export const unlikePost = async(id) => {
+export const unlikePost = async (id) => {
     const res = await api.delete(`/post/${id}/unlike`);
     return res.data;
 }
