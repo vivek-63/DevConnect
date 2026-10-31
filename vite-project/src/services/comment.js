@@ -1,10 +1,9 @@
 import axios from 'axios'
 
 export const api = axios.create({
-    baseURL: "http://localhost:8080" || import.meta.env.VITE_API_URL,
+    baseURL: "http://localhost:8080" || "https://devconnect-mvfy.onrender.com",
     withCredentials: true,
 });
-
 export const getComments = async (id) => {
     try {
         const res = await api.get(`/posts/${id}/comments`);
