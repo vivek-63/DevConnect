@@ -1,9 +1,10 @@
 import axios from "axios";
 
 export const api = axios.create({
-  baseURL: "http://localhost:8080" || "https://devconnect-mvfy.onrender.com",
+  baseURL: "https://devconnect-mvfy.onrender.com",
   withCredentials: true,
 });
+
 
 export async function register({ username, email, password }) {
   try {
